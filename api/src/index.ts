@@ -1,8 +1,11 @@
 import axios from "axios";
 import { unlink, writeFile } from "fs/promises";
+import { ChatOpenAI } from "langchain/chat_models/openai";
 import { Document } from "langchain/document";
 import { UnstructuredLoader } from "langchain/document_loaders/fs/unstructured";
+import { formatDocumentsAsString } from "langchain/util/document";
 import { PDFDocument } from "pdf-lib";
+import { ArxivPaperNote, NOTE_PROMPT, NOTES_TOOL_SCHEMA, outputParser } from "prompt.js";
 
 const deletePages = async (pdf: Buffer, pagesToDelete: number[]): Promise<Buffer> => { 
   const pdfDoc = await PDFDocument.load(pdf)
@@ -35,6 +38,17 @@ const convertPdfToDocuments = async (pdf: Buffer): Promise<Array<Document>> => {
   return documents
  }
 
+const generateNotes = async (documents: Array<Document>): Promise<ArxivPaperNote[]> => {
+const documentsAsString = formatDocumentsAsString(documents)
+const model = new ChatOpenAI({temperature: 0.0, modelName: "gpt-4", openAIApiKey: process.env.OPENAI_API_KEY, })
+  const modelWithTool = model.bind({
+  tools: [NOTES_TOOL_SCHEMA],
+  })
+  const chain = NOTE_PROMPT.pipe(modelWithTool).pipe(outputParser)
+  const response = await chain.invoke({ paper: documentsAsString })
+  return response
+}
+
 const main = async ({
   paperUrl,
   name,
@@ -54,6 +68,9 @@ const main = async ({
   }
 
   const documents = await convertPdfToDocuments(pdfAsBuffer)
+  const notes = await generateNotes(documents)
+  console.log("🚀 ~ notes:", notes)
+  console.log("🚀 ~ notes length:", notes.length)
 }
 
 main({paperUrl:"https://arxiv.org/pdf/2410.21549.pdf", name: "test"})
