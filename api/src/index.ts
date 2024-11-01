@@ -1,4 +1,5 @@
 import axios from "axios";
+import { SupabaseDatabase } from "database.js";
 import { unlink, writeFile } from "fs/promises";
 import { ChatOpenAI } from "langchain/chat_models/openai";
 import { Document } from "langchain/document";
@@ -58,6 +59,7 @@ const main = async ({
   name: string
   pagesToDelete?: number[]
 }) => {
+  console.log("🚀 ~ name:", name)
   if (!paperUrl.endsWith(".pdf")) {
     throw new Error("Not an PDF")
   }
@@ -71,6 +73,8 @@ const main = async ({
   const notes = await generateNotes(documents)
   console.log("🚀 ~ notes:", notes)
   console.log("🚀 ~ notes length:", notes.length)
+  const database = await SupabaseDatabase.fromDocuments(documents)
+  await Promise.all([database.addPaper({ paper: formatDocumentsAsString(documents), url: paperUrl, notes, name }), database.vectorStore.addDocuments(documents)])
 }
 
 main({paperUrl:"https://arxiv.org/pdf/2410.21549.pdf", name: "test"})
